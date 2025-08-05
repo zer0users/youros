@@ -1,0 +1,266 @@
+program "YourOS"
+
+#get "shell"
+#get "files"
+#get "cx"
+#from "cx" get "cx-project"
+#from "cx" get "cx-app"
+
+define class "YourOS"
+    files.add("file", "alpine.qcow2", "alpine.qcow2")
+
+    cx.project.name = "YourOS"
+    cx.project.platform = "linux"
+    cx.app.shell = "python3"
+    cx.app.class = "OSBuilder"
+finish
+
+define class "OSBuilder"
+    import tkinter as tk
+    from tkinter import messagebox
+    import subprocess
+    import shutil
+    import os
+    import time
+    from pathlib import Path
+
+    class YourOSGUI:
+        def __init__(self):
+            self.root = tk.Tk()
+            self.root.title("YourOS Builder")
+            self.root.geometry("500x400")
+            self.root.configure(bg='#2c3e50')
+            self.os_name = ""
+            self.show_welcome()
+
+        def show_welcome(self):
+            # Clear window
+            for widget in self.root.winfo_children():
+                widget.destroy()
+
+            # Title
+            title_label = tk.Label(
+                self.root,
+                text="Welcome to YourOS!",
+                font=('Arial', 24, 'bold'),
+                fg='#ecf0f1',
+                bg='#2c3e50'
+            )
+            title_label.pack(pady=30)
+
+            # Description
+            desc_label = tk.Label(
+                self.root,
+                text="YourOS is an application to make your own OS with alpine!",
+                font=('Arial', 14),
+                fg='#bdc3c7',
+                bg='#2c3e50',
+                wraplength=400
+            )
+            desc_label.pack(pady=20)
+
+            # Love message
+            love_label = tk.Label(
+                self.root,
+                text="Let's get started with love!",
+                font=('Arial', 16, 'italic'),
+                fg='#e74c3c',
+                bg='#2c3e50'
+            )
+            love_label.pack(pady=20)
+
+            # Start button
+            start_button = tk.Button(
+                self.root,
+                text="Let's start!",
+                font=('Arial', 16, 'bold'),
+                bg='#3498db',
+                fg='white',
+                padx=30,
+                pady=10,
+                command=self.show_name_input,
+                cursor='hand2'
+            )
+            start_button.pack(pady=30)
+
+        def show_name_input(self):
+            # Clear window
+            for widget in self.root.winfo_children():
+                widget.destroy()
+
+            # Title
+            title_label = tk.Label(
+                self.root,
+                text="OS Name",
+                font=('Arial', 24, 'bold'),
+                fg='#ecf0f1',
+                bg='#2c3e50'
+            )
+            title_label.pack(pady=30)
+
+            # Question
+            question_label = tk.Label(
+                self.root,
+                text="What will be the OS Name :D?",
+                font=('Arial', 16),
+                fg='#bdc3c7',
+                bg='#2c3e50'
+            )
+            question_label.pack(pady=20)
+
+            # Input field
+            self.name_entry = tk.Entry(
+                self.root,
+                font=('Arial', 14),
+                width=30,
+                bg='#ecf0f1',
+                fg='#2c3e50',
+                justify='center'
+            )
+            self.name_entry.pack(pady=20)
+            self.name_entry.insert(0, "Your OS Name here..")
+            self.name_entry.bind('<FocusIn>', lambda e: self.name_entry.delete(0, tk.END) if self.name_entry.get() == "Your OS Name here.." else None)
+
+            # Done button
+            done_button = tk.Button(
+                self.root,
+                text="Done! Thank Jehovah",
+                font=('Arial', 16, 'bold'),
+                bg='#27ae60',
+                fg='white',
+                padx=30,
+                pady=10,
+                command=self.process_os_creation,
+                cursor='hand2'
+            )
+            done_button.pack(pady=30)
+
+        def process_os_creation(self):
+            self.os_name = self.name_entry.get().strip()
+
+            if not self.os_name or self.os_name == "Your OS Name here..":
+                messagebox.showerror("Error", "Please enter a valid OS name!")
+                return
+
+            # Close GUI and start QEMU
+            self.root.destroy()
+            self.start_qemu_process()
+
+        def start_qemu_process(self):
+            print(f"Creating OS: {self.os_name}")
+            print("Starting QEMU with Alpine Linux...")
+
+            # Execute QEMU
+            qemu_cmd = [
+                'qemu-system-x86_64',
+                '-m', '2G',
+                '-smp', '2',
+                '-cpu', 'host',
+                '-enable-kvm',
+                '-drive', 'file=alpine.qcow2,format=qcow2,if=virtio',
+                '-vga', 'virtio',
+                '-netdev', 'user,id=net0,hostfwd=tcp::2222-:22',
+                '-device', 'virtio-net-pci,netdev=net0',
+                '-device', 'usb-tablet',
+                '-usb',
+                '-rtc', 'base=utc,clock=host',
+                '-full-screen'
+            ]
+
+            try:
+                # Run QEMU and wait for it to finish
+                subprocess.run(qemu_cmd, check=True)
+                print("QEMU closed, processing...")
+
+                # Wait for disk save
+                time.sleep(3)
+
+                # Get user's Desktop directory
+                home_dir = Path.home()
+                desktop_dir = home_dir / "Desktop"
+                desktop_dir.mkdir(exist_ok=True)
+
+                # Move the qcow2 file to Desktop
+                source_qcow2 = Path("alpine.qcow2")
+                dest_qcow2 = desktop_dir / "alpine.qcow2"
+
+                if source_qcow2.exists():
+                    print(f"Moving {source_qcow2} to {dest_qcow2}")
+                    shutil.move(str(source_qcow2), str(dest_qcow2))
+
+                # Create main.cx with the custom OS name
+                main_cx_content = 'program "' + self.os_name + '"\n\n'
+                main_cx_content += '#get "shell"\n'
+                main_cx_content += '#get "files"\n'
+                main_cx_content += '#get "cx"\n'
+                main_cx_content += '#from "cx" get "cx-project"\n'
+                main_cx_content += '#from "cx" get "cx-app"\n\n'
+                main_cx_content += 'define class "' + self.os_name + '"\n'
+                main_cx_content += '    files.add("file", "alpine.qcow2", "alpine.qcow2")\n\n'
+                main_cx_content += '    cx.project.name = "' + self.os_name + '"\n'
+                main_cx_content += '    cx.project.platform = "linux"\n'
+                main_cx_content += '    cx.app.shell = "python3"\n'
+                main_cx_content += '    cx.app.class = "OSRunner"\n'
+                main_cx_content += 'finish\n\n'
+                main_cx_content += 'define class "OSRunner"\n'
+                main_cx_content += '    import subprocess\n\n'
+                main_cx_content += '    print("Starting ' + self.os_name + ' - Your Custom OS")\n\n'
+                main_cx_content += '    # Execute QEMU\n'
+                main_cx_content += '    qemu_cmd = [\n'
+                main_cx_content += "        'qemu-system-x86_64',\n"
+                main_cx_content += "        '-m', '2G',\n"
+                main_cx_content += "        '-smp', '2',\n"
+                main_cx_content += "        '-cpu', 'host',\n"
+                main_cx_content += "        '-enable-kvm',\n"
+                main_cx_content += "        '-drive', 'file=alpine.qcow2,format=qcow2,if=virtio',\n"
+                main_cx_content += "        '-vga', 'virtio',\n"
+                main_cx_content += "        '-netdev', 'user,id=net0,hostfwd=tcp::2222-:22',\n"
+                main_cx_content += "        '-device', 'virtio-net-pci,netdev=net0',\n"
+                main_cx_content += "        '-device', 'usb-tablet',\n"
+                main_cx_content += "        '-usb',\n"
+                main_cx_content += "        '-rtc', 'base=utc,clock=host',\n"
+                main_cx_content += "        '-full-screen'\n"
+                main_cx_content += '    ]\n\n'
+                main_cx_content += '    subprocess.run(qemu_cmd)\n'
+                main_cx_content += '    print("' + self.os_name + ' closed")\n'
+                main_cx_content += 'finish'
+
+                main_cx_path = desktop_dir / "main.cx"
+                with open(main_cx_path, 'w') as f:
+                    f.write(main_cx_content)
+
+                print(f"Created {main_cx_path}")
+
+                # Build the new CX application in Desktop
+                print("Building your custom OS application...")
+                try:
+                    subprocess.run(['cx', 'build'], check=True, cwd=desktop_dir)
+
+                    # Remove temporary files from Desktop
+                    if dest_qcow2.exists():
+                        dest_qcow2.unlink()
+                        print("Removed alpine.qcow2 from Desktop")
+
+                    if main_cx_path.exists():
+                        main_cx_path.unlink()
+                        print("Removed main.cx from Desktop")
+
+                    print(f"Success! {self.os_name}.cxA has been created on your Desktop!")
+                    print(f"You can find it at: {desktop_dir / (self.os_name + '.cxA')}")
+                    print(f"Run it with: cx \"{desktop_dir / (self.os_name + '.cxA')}\"")
+
+                except subprocess.CalledProcessError as e:
+                    print(f"Build failed: {e}")
+
+            except subprocess.CalledProcessError as e:
+                print(f"QEMU failed: {e}")
+            except Exception as e:
+                print(f"Error: {e}")
+
+        def run(self):
+            self.root.mainloop()
+
+    # Create and run the GUI
+    app = YourOSGUI()
+    app.run()
+finish
