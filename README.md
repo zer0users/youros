@@ -1,2 +1,2 @@
-# youros
+# YourOS
 Made with love!
